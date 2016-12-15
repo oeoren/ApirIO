@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>ApirIO</id>
+    <version>1.1.2</version>
+    <authors>Ole Oren</authors>
+    <owners>Ole Oren</owners>
+    <projectUrl>http://apir.io</projectUrl>
+    <iconUrl>http://apir.azurewebsites.net/favicon.ico</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Create WebApi from SQL Server Stored Procedures</description>
+    <releaseNotes>Update connection string.</releaseNotes>
+    <copyright>Copyright 2016</copyright>
+    <tags>SQL REST WebApi AspNet AspNetWebApi SelfHost</tags>
+    <dependencies>
+            <dependency id="WebActivatorEx" version="2.1.0" />
+            <dependency id="NLog" version="4.0.0.0"/>
+            <dependency id="Microsoft.AspNet.WebApi.Core" />
+    </dependencies>
+  </metadata>
+</package>
