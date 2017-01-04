@@ -277,18 +277,19 @@ namespace ApirLib
                         AddProc(sb, proc);
                         AddAdoParams(sb, controller, proc, "", true);
 
-                        sb.AppendLine("\tSqlDataAdapter da = new SqlDataAdapter(com);");
-                        sb.AppendLine("\tcon.Open();");
+                        sb.AppendLine("\t\tSqlDataAdapter da = new SqlDataAdapter(com);");
+                        sb.AppendLine("\t\tcon.Open();");
 
-                        sb.AppendLine("\tDataSet ds = new DataSet();");
-                        sb.AppendLine("\tda.Fill(ds);");
-                        sb.AppendLine("\tda.Dispose();");
+                        sb.AppendLine("\t\tDataSet ds = new DataSet();");
+                        sb.AppendLine("\t\tda.Fill(ds);");
+                        sb.AppendLine("\t\tda.Dispose();");
 
                         AddTrace(sb, controller, proc, true);
 
-                        sb.AppendLine("\tDataTable dt = ds.Tables[0];");
-                        sb.AppendFormat("\tList<{0}> ret = dt.ToListCollection<{0}>();\n", controller.name);
-                        sb.AppendFormat("\treturn ret.AsEnumerable<{0}>();\n", controller.name);
+                        sb.AppendLine("\t\tDataTable dt = ds.Tables[0];");
+                        sb.AppendFormat("\t\tList<{0}> ret = dt.ToListCollection<{0}>();\n", controller.name);
+                        sb.AppendFormat("\t\treturn ret.AsEnumerable<{0}>();\n", controller.name);
+                        sb.AppendLine("\t\t}\n");
                         sb.AppendLine("\t}\n\n");
 
 
@@ -305,22 +306,23 @@ namespace ApirLib
                             AddProc(sb, proc);
                             AddAdoParams(sb, controller, proc, "", false);
 
-                            sb.AppendLine("\tSqlDataAdapter da = new SqlDataAdapter(com);");
-                            sb.AppendLine("\tcon.Open();");
+                            sb.AppendLine("\t\tSqlDataAdapter da = new SqlDataAdapter(com);");
+                            sb.AppendLine("\t\tcon.Open();");
 
-                            sb.AppendLine("\tDataSet ds = new DataSet();");
-                            sb.AppendLine("\tda.Fill(ds);");
-                            sb.AppendLine("\tda.Dispose();");
+                            sb.AppendLine("\t\tDataSet ds = new DataSet();");
+                            sb.AppendLine("\t\tda.Fill(ds);");
+                            sb.AppendLine("\t\tda.Dispose();");
 
                             AddTrace(sb, controller, proc, false);
 
-                            sb.AppendLine("\tif ( ds.Tables.Count == 0)");
-                            sb.AppendLine("\t\tthrow new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));");
-                            sb.AppendLine("\tDataTable dt = ds.Tables[0];");
-                            sb.AppendLine("\tif (dt.Rows.Count > 0) ");
-                            sb.AppendFormat("\t\treturn  dt.ToListCollection<{0}>()[0];\n", controller.name);
-                            sb.AppendLine("\telse ");
-                            sb.AppendLine("\t\tthrow new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));");
+                            sb.AppendLine("\t\tif ( ds.Tables.Count == 0)");
+                            sb.AppendLine("\t\t\tthrow new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));");
+                            sb.AppendLine("\t\tDataTable dt = ds.Tables[0];");
+                            sb.AppendLine("\t\tif (dt.Rows.Count > 0) ");
+                            sb.AppendFormat("\t\t\treturn  dt.ToListCollection<{0}>()[0];\n", controller.name);
+                            sb.AppendLine("\t\telse ");
+                            sb.AppendLine("\t\t\tthrow new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));");
+                            sb.AppendLine("\t\t}\n");
                             sb.AppendLine("\t}\n\n");
 
                         }
@@ -339,7 +341,8 @@ namespace ApirLib
                         sb.AppendLine("\tcom.ExecuteNonQuery();");
                         AddTrace(sb, controller, proc);
                         AddReturn(sb);
-                        sb.AppendLine("\t}");
+                        sb.AppendLine("\t\t}\n");
+                        sb.AppendLine("\t}\n\n");
                     }
                     else if (proc.name.ToLower().EndsWith("post"))
                     {
@@ -355,16 +358,17 @@ namespace ApirLib
                         AddProc(sb, proc);
                         AddAdoParams(sb, controller, proc, "res", false);
                         sb.AppendLine("\ttry {");
-                        sb.AppendLine("\tcon.Open();");
-                        sb.AppendLine("\tcom.ExecuteNonQuery();");
-                        sb.AppendLine("\t} catch (Exception ex) {");
+                        sb.AppendLine("\t\tcon.Open();");
+                        sb.AppendLine("\t\tcom.ExecuteNonQuery();");
+                        sb.AppendLine("\t\t} catch (Exception ex) {");
                         AddTrace(sb, controller, proc,true);
-                        sb.AppendLine("\t\tlogger.Fatal(\"" + proc.name + ": SqlException:\" + ex.Message  );");
-                        sb.AppendLine("\t\t return Request.CreateErrorResponse(HttpStatusCode.BadRequest, ex.Message);");
-                        sb.AppendLine("\t} ");
+                        sb.AppendLine("\t\t\tlogger.Fatal(\"" + proc.name + ": SqlException:\" + ex.Message  );");
+                        sb.AppendLine("\t\t\t return Request.CreateErrorResponse(HttpStatusCode.BadRequest, ex.Message);");
+                        sb.AppendLine("\t\t} ");
                         AddTrace(sb, controller, proc, true);
                         AddReturn(sb, hasNewId);
-                        sb.AppendLine("\t}");
+                        sb.AppendLine("\t\t}\n");
+                        sb.AppendLine("\t}\n\n");
                     }
                     else if (proc.name.ToLower().EndsWith("delete"))
                     {
@@ -375,11 +379,12 @@ namespace ApirLib
                         AddProc(sb, proc);
                         AddAdoParams(sb, controller, proc, "");
 
-                        sb.AppendLine("\tcon.Open();");
-                        sb.AppendLine("\tcom.ExecuteNonQuery();");
+                        sb.AppendLine("\t\tcon.Open();");
+                        sb.AppendLine("\t\tcom.ExecuteNonQuery();");
                         AddTrace(sb, controller, proc);
                         AddReturn(sb);
-                        sb.AppendLine("\t}");
+                        sb.AppendLine("\t\t}\n");
+                        sb.AppendLine("\t}\n\n");
                     }
 
                 }
@@ -488,12 +493,12 @@ namespace ApirLib
 
         private static void AddProc(StringBuilder sb, ProcInfo proc)
         {
-            sb.AppendLine("\tSqlConnection con = DbUtil.GetConnection();");
-            sb.AppendFormat("\tSqlCommand com = new SqlCommand(\"API_{0}\",con);\n", proc.name);
-            sb.AppendLine("\tcom.CommandType = CommandType.StoredProcedure;");
+            sb.AppendLine("\tusing(SqlConnection con = DbUtil.GetConnection()) {");
+            sb.AppendFormat("\t\tSqlCommand com = new SqlCommand(\"API_{0}\",con);\n", proc.name);
+            sb.AppendLine("\t\tcom.CommandType = CommandType.StoredProcedure;");
 
-            sb.AppendLine("\tSqlParameter RetVal = com.Parameters.Add(\"RetVal\", SqlDbType.Int);");
-            sb.AppendLine("\tRetVal.Direction = ParameterDirection.ReturnValue;");
+            sb.AppendLine("\t\tSqlParameter RetVal = com.Parameters.Add(\"RetVal\", SqlDbType.Int);");
+            sb.AppendLine("\t\tRetVal.Direction = ParameterDirection.ReturnValue;");
         }
 
         private static void AddParameters(bool first, StringBuilder sb, ControllerInfo controller, ProcInfo proc, bool skipMembers, bool skipId = false)
