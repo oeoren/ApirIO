@@ -53,7 +53,7 @@ namespace ApirLib
 
             parameters.ReferencedAssemblies.Add(path + @"\NLog.dll");
 
-            parameters.CompilerOptions = "/doc:" + sourcePath + "xmlComments.xml";
+            parameters.CompilerOptions = "/doc:\"" + sourcePath + "xmlComments.xml\"";
 #if DEBUG
             parameters.IncludeDebugInformation = true;
             parameters.GenerateInMemory = false;

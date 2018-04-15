@@ -9,7 +9,7 @@ using System.Web;
 using System.Web.Http.Controllers;
 
 namespace Apir
-{
+{ 
     public class BasicAuthMessageHandler : DelegatingHandler
     {
         private const string BasicAuthResponseHeader = "WWW-Authenticate";

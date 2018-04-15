@@ -1,28 +1,33 @@
-﻿using System;
+﻿using NLog;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ApirLib
 {
-	public class ModelBuilder
-	{
+    public class ModelBuilder
+    {
+        private static Logger logger = LogManager.GetCurrentClassLogger();
+
 
         static public TableModel ConstructTableModel(string conString, string tableName, string resource)
         {
             TableModel tableModel = new TableModel();
             tableModel.tableName = tableName;
             tableModel.resource = resource;
+
             var con = new SqlConnection(conString);
             SqlCommand cmd = con.CreateCommand();
             SqlCommand cmd2 = con.CreateCommand();
             SqlCommand cmd3 = con.CreateCommand();
-
+ 
             cmd.CommandType = CommandType.Text;
-            string query = string.Format( @"
+            string query = string.Format(@"
                 SELECT  
                           b.column_name
                 FROM      information_schema.table_constraints a,
@@ -109,12 +114,21 @@ namespace ApirLib
 
 
         static public Model ConstructModel(string conString)
-		{
-			Model model = new Model();
-			var con = new SqlConnection(conString);
-			SqlCommand cmd = con.CreateCommand();
-			cmd.CommandType = CommandType.Text;
-			string query = @"SELECT  
+        {
+            Model model = new Model();
+            SqlConnection con=null;
+            SqlCommand cmd;
+            try
+            {
+                con = new SqlConnection(conString);
+            } catch (Exception ex)
+            {
+                logger.Fatal(ex);
+                return null;
+            }
+            cmd = con.CreateCommand();
+            cmd.CommandType = CommandType.Text;
+            string query = @"SELECT  
 					ProcedureName = ir.ROUTINE_NAME, 
 					ParameterName = COALESCE(ip.PARAMETER_NAME, '<no params>'),
                     SqlType = ip.DATA_TYPE,  Precision = ip.NUMERIC_PRECISION, Scale = ip.NUMERIC_SCALE, MaxLen = ip.CHARACTER_MAXIMUM_LENGTH,
@@ -143,22 +157,22 @@ namespace ApirLib
 				ORDER BY  
 					ir.ROUTINE_NAME, 
 					ip.ORDINAL_POSITION";
-			cmd.CommandText = query;
-			DataTable table = new DataTable();
-			con.Open();
+            cmd.CommandText = query;
+            DataTable table = new DataTable();
+            con.Open();
 
-			try
-			{
-				SqlDataAdapter da = null;
-				using (da = new SqlDataAdapter(cmd))
-				{
-					da.Fill(table);
-				}
+            try
+            {
+                SqlDataAdapter da = null;
+                using (da = new SqlDataAdapter(cmd))
+                {
+                    da.Fill(table);
+                }
 
-				foreach (DataRow row in table.Rows)
-				{
-					string procName = row["ProcedureName"].ToString();
-					ControllerInfo controller = GetControllerInfo( model, procName);
+                foreach (DataRow row in table.Rows)
+                {
+                    string procName = row["ProcedureName"].ToString();
+                    ControllerInfo controller = GetControllerInfo(model, procName);
                     if (controller != null)
                     {
                         ProcInfo proc = GetProcInfo(controller, procName);
@@ -174,43 +188,43 @@ namespace ApirLib
                                 isOutput = (row["ParameterMode"].ToString() != "IN")
                             });
                     }
-				}
+                }
 
-				foreach (ControllerInfo controller in model.controllers)
-				{
+                foreach (ControllerInfo controller in model.controllers)
+                {
                     foreach (ProcInfo proc in controller.procs)
                     {
                         if ((proc.name == controller.name + "get") || (proc.name == controller.name + "_get"))
                             if (controller.columns.Count == 0)
                             {
-                                ConstructEntity(con, controller, proc.name);
+                                ConstructEntity(con, controller, proc);
                             }
 
                         foreach (var par in proc.parameters)
-                                par.csType = TypeMapper.GetCSTypeName(par.sqlType);
+                            par.csType = TypeMapper.GetCSTypeName(par.sqlType);
                         GetXmlComments(con, proc);
                     }
-				}
-			}
-			catch (Exception ex)
-			{
-				throw ex;
-			}
-			finally
-			{
-				cmd.Dispose();
-				cmd = null;
-				con.Close();
-			}
-			
-			return model;
-		}
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                cmd.Dispose();
+                cmd = null;
+                con.Close();
+            }
+
+            return model;
+        }
 
         private static void GetXmlComments(SqlConnection con, ProcInfo proc)
         {
             SqlCommand sqlCommand = new SqlCommand("sys.sp_helptext", con);
             sqlCommand.CommandType = CommandType.StoredProcedure;
-            sqlCommand.Parameters.AddWithValue("@objname","api_"+proc.name);
+            sqlCommand.Parameters.AddWithValue("@objname", "api_" + proc.name);
             DataSet ds = new DataSet();
             SqlDataAdapter sqlDataAdapter = new SqlDataAdapter();
             sqlDataAdapter.SelectCommand = sqlCommand;
@@ -223,55 +237,64 @@ namespace ApirLib
                     {
                         string l = r[0].ToString();
                         l = l.Trim();
-                        if (l != null && l.Length > 3 && l.Substring(0, 3) == "---") 
-                            comments += "///" +  l.Substring(3) + "\n";
+                        if (l != null && l.Length > 3 && l.Substring(0, 3) == "---")
+                            comments += "///" + l.Substring(3) + "\n";
                     }
                 }
             proc.xmlComments = comments;
         }
 
 
-		static void ConstructEntity(SqlConnection con, ControllerInfo controller, string nameEntityGet)
-		{
-			SqlCommand cmd = con.CreateCommand();
-			cmd.CommandType = CommandType.Text;
-			string query = string.Format( @"        
+        static void ConstructEntity(SqlConnection con, ControllerInfo controller, ProcInfo procGet)
+        {
+            string vars = ""; bool firstVar = true;
+            foreach (var p in procGet.parameters)
+            {
+                if (!firstVar)
+                    vars += ", ";
+                vars += p.name + "=null";
+                firstVar = false;
+            }
+            SqlCommand cmd = con.CreateCommand();
+            cmd.CommandType = CommandType.Text;
+            string query = string.Format(@"        
 				SET FMTONLY ON;
-				EXEC dbo.api_{0}
+				EXEC dbo.api_{0} {1}
 				SET FMTONLY OFF;
-				", nameEntityGet);
-			cmd.CommandText = query;
-			DataTable table = new DataTable();
-//			con.Open();
+				", procGet.name, vars);
+            cmd.CommandText = query;
+            DataTable table = new DataTable();
+            //			con.Open();
 
-			try
-			{
-				SqlDataAdapter da = null;
-				using (da = new SqlDataAdapter(cmd))
-				{
-					da.Fill(table);
-				}
-				foreach (DataColumn col in table.Columns)
-				{
-					ColumnInfo newColumn = new ColumnInfo { 
-                        name = col.ColumnName, 
-                        sqlType = col.DataType.Name, 
+            try
+            {
+                SqlDataAdapter da = null;
+                using (da = new SqlDataAdapter(cmd))
+                {
+                    da.Fill(table);
+                }
+                foreach (DataColumn col in table.Columns)
+                {
+                    ColumnInfo newColumn = new ColumnInfo
+                    {
+                        name = col.ColumnName,
+                        sqlType = col.DataType.Name,
                         maxLen = col.MaxLength
                     };
-					controller.columns.Add(newColumn);
-				}
-			}
-			catch (Exception ex)
-			{
+                    controller.columns.Add(newColumn);
+                }
+            }
+            catch (Exception ex)
+            {
                 Console.WriteLine("ConstructEntity: ", ex.Message);
-				throw ex;
-			}
-			finally
-			{
-				cmd.Dispose();
-				cmd = null;
-			}
-		}
+                throw ex;
+            }
+            finally
+            {
+                cmd.Dispose();
+                cmd = null;
+            }
+        }
 
         private static string SkipAPI(string name)
         {
@@ -284,42 +307,90 @@ namespace ApirLib
             return name;
         }
 
-		private static ProcInfo GetProcInfo(ControllerInfo controller, string procName)
-		{
+        private static ProcInfo GetProcInfo(ControllerInfo controller, string procName)
+        {
             procName = SkipAPI(procName);
             foreach (var proc in controller.procs)
-				if (proc.name == procName)
-					return proc;
-			ProcInfo newProc = new ProcInfo { name = procName };
-			controller.procs.Add(newProc);
-			return newProc;
-		}
-		
-		private static ControllerInfo GetControllerInfo( Model model , string procName)
-		{
+                if (proc.name == procName)
+                    return proc;
+            ProcInfo newProc = new ProcInfo { name = procName };
+            controller.procs.Add(newProc);
+            return newProc;
+        }
+
+        private static ControllerInfo GetControllerInfo(Model model, string procName)
+        {
             procName = SkipAPI(procName);
             if (procName.EndsWith("delete"))
-				procName = procName.Substring(0,procName.Length - 6);
-			else if (procName.EndsWith("get"))
-				procName = procName.Substring(0, procName.Length - 3);
+                procName = procName.Substring(0, procName.Length - 6);
+            else if (procName.EndsWith("get"))
+                procName = procName.Substring(0, procName.Length - 3);
             else if (procName.EndsWith("put"))
-				procName = procName.Substring(0, procName.Length - 3);
+                procName = procName.Substring(0, procName.Length - 3);
             else if (procName.EndsWith("post"))
-				procName = procName.Substring(0, procName.Length - 4);
+                procName = procName.Substring(0, procName.Length - 4);
             else
-				return null;
+                return null;
 
             if (procName.EndsWith("_"))
                 procName = procName.Substring(0, procName.Length - 1);
 
-			foreach (var controller in model.controllers)
-				if (controller.name == procName)
-					return controller;
-			ControllerInfo newController = new ControllerInfo { name = procName };
-			model.controllers.Add(newController);
-			return newController;
-		}
+            foreach (var controller in model.controllers)
+                if (controller.name == procName)
+                    return controller;
+            ControllerInfo newController = new ControllerInfo { name = procName };
+            model.controllers.Add(newController);
+            return newController;
+        }
 
+        static public string RetrieveApiSource(string conString, string resource=null)
+        {
+            string filter = (resource == null) ? "API_%" : "API_" + resource + "_%";
+            var con = new SqlConnection(conString);
+            SqlCommand cmd = con.CreateCommand();
+            cmd.CommandType = CommandType.Text;
+            string query = @"SELECT  
+                    Name, Definition From sys.procedures p 
+                        inner join sys.sql_modules m on p.object_id = m.object_id 
+                        Where [Type] = 'P' AND  NAME Like '" + filter + "' " +
+                    "ORDER BY Name";
+            cmd.CommandText = query;
+            DataTable table = new DataTable();
+            con.Open();
+            string source = string.Format("-- Apir Source captured at " + DateTime.Now.ToShortDateString() + "\n\n");
 
-	}
+            try
+            {
+                SqlDataAdapter da = null;
+                using (da = new SqlDataAdapter(cmd))
+                {
+                    da.Fill(table);
+                }
+
+                foreach (DataRow row in table.Rows)
+                {
+                    string name = row["name"].ToString();
+                    string definition = row["definition"].ToString();
+                    var search = "CREATE PROCEDURE";
+                    var replacement = "ALTER PROCEDURE";
+                    definition = Regex.Replace(
+                        definition,
+                        Regex.Escape(search),
+                        replacement.Replace("$", "$$"),
+                        RegexOptions.IgnoreCase
+                    );
+                    source += string.Format("IF NOT EXISTS(SELECT * FROM sys.objects WHERE type = 'P' AND OBJECT_ID = OBJECT_ID('dbo.{0}')) \n", name);
+                    source += string.Format("  exec('CREATE PROCEDURE [dbo].[{0}] AS BEGIN SET NOCOUNT ON; END')\n", name);
+                    source += string.Format("GO\n");
+                    source += definition;
+                    source += string.Format("\nGO\n");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+            return source;
+        }
+    }
 }

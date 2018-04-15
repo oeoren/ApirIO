@@ -42,7 +42,43 @@ namespace ApirLib
                     else throw(new Exception("Unknown SQL Datatype: " + sqlName));
 
             }
-        } 
+        }
+
+        public static string GetTSTypeName(string sqlName)
+        {
+            switch (sqlName.ToLower())
+            {
+                case "varchar": return "String";
+                case "string": return "String";
+                case "bigint": return "Number";
+                case "smallint": return "Number";
+                case "int": return "Number";
+                case "int32": return "Number";
+                case "int16": return "Number";
+                case "int64": return "Number";
+                case "binary": return "binary";
+                case "bit": return "bool?";
+                case "date": return "Date";
+                case "datetime": return "Date";
+                case "decimal": return "Number";
+                case "single": return "Number";
+                case "real": return "Number";
+                case "float": return "Number";
+                case "double": return "Number";
+                case "money": return "Number";
+                case "nchar": return "String";
+                case "char": return "String";
+                case "ntext": return "String";
+                case "boolean": return "boolean";
+                case "uniqueidentifier": return "String";
+                case "image": return "binary";
+                default:
+                    if (sqlName.ToLower().EndsWith("char"))
+                        return "string";
+                    else throw (new Exception("Unknown SQL Datatype: " + sqlName));
+
+            }
+        }
 
     }
 }

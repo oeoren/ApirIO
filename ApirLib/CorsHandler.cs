@@ -41,10 +41,16 @@ namespace ApirLib
                             response.Headers.Add(accessControlAllowMethods, controlRequestMethod);
                         }
 
-                        string requestedHeaders =
-                          string.Join(", ", request.Headers.GetValues(accessControlRequestHeaders));
 
-                        if (!string.IsNullOrEmpty(requestedHeaders))
+                        IEnumerable<string> requestedHeaders;
+                        request.Headers.TryGetValues(accessControlRequestHeaders, out requestedHeaders);
+
+                        if (requestedHeaders == null)
+                            return response;
+
+                        string requestedHeader = string.Join(", ", requestedHeaders);
+
+                        if (!string.IsNullOrEmpty(requestedHeader))
                         {
                             response.Headers.Add(accessControlAllowHeaders, requestedHeaders);
                         }

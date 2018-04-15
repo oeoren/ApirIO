@@ -19,11 +19,11 @@ namespace ApirLib
             srcDrop += string.Format("  DROP PROCEDURE [dbo].[API_{0}_{1}]", resource, verb);
             return srcDrop;
         }
-        static public string BuildTableProc(TableModel m, string verb)
+        static public string BuildTableProc(TableModel m, string verb, bool filter, bool page)
         {
             switch (verb.ToLower()) {
                 case "get":
-                    return BuildGetTableProc(m);
+                    return BuildGetTableProc(m, filter, page);
                 case "put":
                     return BuildPutTableProc(m);
                 case "post":
@@ -140,7 +140,7 @@ namespace ApirLib
             return sb.ToString();
         }
 
-        static public string BuildGetTableProc(TableModel m)
+        static public string BuildGetTableProc(TableModel m, bool filter, bool page)
         {
             var sb = new StringBuilder(6000)
             .AppendFormat("--- <summary> \r\n")
@@ -148,8 +148,13 @@ namespace ApirLib
             .AppendFormat("--- </summary>  \r\n")
             .AppendFormat("--- <param name = \"ID\" > {0} ID </param> \r\n", m.tableName)
             .AppendFormat("--- <remarks> Returns all or a single {0} </remarks> \r\n", m.tableName)
-            .AppendFormat("     CREATE PROCEDURE[dbo].[API_{0}_Get](@ID varchar(max) = NULL)  AS \r\n", m.resource)
-            .AppendFormat("         SELECT  ");
+            .AppendFormat("     CREATE PROCEDURE[dbo].[API_{0}_Get](@ID varchar(max) = NULL  \r\n", m.resource);
+            if (filter)
+                sb.Append("           , @filter varchar(max)=NULL \r\n");
+            if (page)
+                sb.Append("           , @pageNo int = 1, @pageSize int=40 \r\n");
+            sb.Append("     ) AS \r\n");
+            sb.Append("         SELECT  ");
             int i = 0;
             foreach (var col in m.columns)
             {
@@ -159,10 +164,18 @@ namespace ApirLib
                     sb.Append(", ");
             }
             sb.AppendFormat("\r\n           FROM {0}  \r\n", m.tableName);
-            sb.AppendFormat("           WHERE @ID IS NULL OR @ID = {0} \r\n", m.KeyColum);
+            sb.AppendFormat("           WHERE (@ID IS NULL OR @ID = {0}) \r\n", m.KeyColum);
+            if (filter)
+                sb.AppendFormat("           AND (@filter IS NULL OR CHARINDEX(@filter,CAST({0} AS varchar)) > 0)\r\n ", m.columns[1].name);
+            sb.AppendFormat("           ORDER BY {0}\r\n ", m.columns[1].name);
+            if (page)
+            {
+                sb.Append("           OFFSET (@pageNo-1)*@pageSize ROW \r\n");
+                sb.Append("           FETCH NEXT @pageSize ROW ONLY  \r\n");
+            }
             return sb.ToString();
         }
-        static public string BuildCode(Model model, bool fAuthorize, string freeResources = null)
+        static public string BuildCode(Model model, bool fAuthorize, string freeResources = null, string connectionString = null)
         {
             List<string> _freeResources = null;
 
@@ -205,7 +218,10 @@ namespace ApirLib
             sb.AppendLine("static public string message;");
 
             sb.AppendLine("\tstatic public SqlConnection GetConnection() {");
-            sb.AppendLine("\t\tstring conStr = ConfigurationManager.ConnectionStrings[\"DefaultConnection\"].ConnectionString;");
+            if (connectionString != null)
+                sb.AppendLine("\t\tstring conStr = @\"" + connectionString.Replace("\"","\\\"") + "\";");
+            else
+                sb.AppendLine("\t\tstring conStr = ConfigurationManager.ConnectionStrings[\"DefaultConnection\"].ConnectionString;");
             sb.AppendLine("\t\tSqlConnection con = new SqlConnection(conStr);");
             sb.AppendLine("DbUtil.message = \"\";");
             sb.AppendLine("con.InfoMessage += delegate(object sender, SqlInfoMessageEventArgs e)");
